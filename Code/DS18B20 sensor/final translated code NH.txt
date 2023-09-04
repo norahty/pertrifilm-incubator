@@ -1,0 +1,200 @@
+/*  purpose：Arduino temp control
+  一、hardware
+    1、1*DS18B20
+    2、1*12V heater
+    3、1*MOS 
+    4、1*buzzer
+    5、1*Arduino Mega 2560
+    6、1*0.92 inch OLED
+    7、1*SD card
+    8，battery
+  二、connection
+    第01步 all  5V      to Arduino 的 5V
+    第02步 all GND     to Arduino 的 GND
+    第03步 MOS : IN      to Arduino 的 D4
+    第04步 buzzer          to Arduino 的 D3
+    第05步 DS18B20 middle       to  Arduino 的 D5
+    第06步 OLED : SCL       to arduino 的 SCL
+    第07步 OLED : SDA       to arduino 的 SDA
+    第07步 SD : MISO    to arduino 的 50
+    第07步 SD : MOSI    to arduino 的 51
+    第07步 SD : SCK     to arduino 的 52
+    第07步 SD : CS      to arduino 的 53
+  三、wannings: 
+    Do not set tim to be lower than or equal to 500ms。
+    Do not touch the heating pad while it is working
+    Do not let the sensor touch the heater directly
+
+Libs that you need to install
+   Adafruit_SSD1306, DallasTemperature，MsTimer2
+*/
+#include <Wire.h>
+#include <Adafruit_GFX.h>     // OLED0.91lib
+#include <Adafruit_SSD1306.h>
+#include <DallasTemperature.h>// DS18B20 lib
+#include <MsTimer2.h>         //timer lib
+#include <SPI.h>
+#include <SD.h>
+
+#define SCREEN_WIDTH 128      // OLED width pixel
+#define SCREEN_HEIGHT 32      // OLED hight pixel
+#define OLED_RESET 4          // define reset pin
+#define ONE_WIRE_BUS 2        // define DS18B20 pin as pin2
+#define buzzer 4              // define pin 4 as buzzer connector
+#define warmer 3              // define pin3 as heater connector
+#define tim 1000              // timer, set as 1000, ms
+
+//define OLED parameter
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+// make File
+File myFile;
+// initialize onewire
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+_Bool timer_state;        //timer status
+unsigned char temps[80];  //store temp value
+unsigned char val ;       //time of storing temperature
+unsigned int beep_time;   //unacceptable time 
+unsigned int beep_begin = 180;//start beeping time
+unsigned int beep_end = 180;  //total beeping time(s)
+void setup() {
+  Serial.begin(9600);
+  Wire.begin();     // initialize wire lib
+  sensors.begin();  // initialize DS18B20 lib
+
+  pinMode(10, OUTPUT);
+  if (!SD.begin()) {
+    Serial.println("initialization failed!");
+  }
+
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); // initialize OLED set IIC address as 0x3C
+
+  MsTimer2::set(tim, refresh);    // stop tim，refresh every tim ms
+  MsTimer2::start();               //start timer
+
+  pinMode(buzzer, OUTPUT);         //set heater and buzzer as output
+  digitalWrite(buzzer, LOW);
+  pinMode(warmer, OUTPUT);
+  digitalWrite(warmer, LOW);
+  display.clearDisplay();
+  unsigned char i;
+  for (i = 0; i < 80; i++) {       //fill in initial temp
+    temps[i] = 30;
+  }
+}
+
+void loop() {
+  if (timer_state == true) {
+    sensors.requestTemperatures();            // request temp
+    float temp = sensors.getTempCByIndex(0);
+    Serial.print(temp);
+    Serial.println(" C"); // serialport send temp data
+    Temp_coord(temp);     // change temp into coordinates
+    Temp_display(temp);   // OLED show temp
+    Warm(temp);           // heater and buzzer control
+    temp_save(temp);      // store temp data
+    timer_state = false;
+  }
+}
+
+void refresh() {    //stop timer ever 5s, checking if temp is acceptable
+  timer_state = true;
+}
+
+void Temp_display(float temp) { //OLED display temp，input=temp
+  display.clearDisplay();       // clear screen
+  display.setTextColor(WHITE);  // set while to be visable
+  display.setTextSize(1);       //set text size
+  display.setCursor(85, 0);     //set cursor place
+  display.print("Temp:");       //words
+  display.setCursor(85, 15);    //set cursor place
+  display.print((String)temp);          //show temp
+  display.print("C");
+  display.drawLine(0, 0, 0, 30, WHITE);   //draw Y axis
+  display.drawLine(0, 30, 80, 30, WHITE); //draw X axis
+
+  Display_temps();              //show temp point
+  display.display();            //update screen
+}
+
+void Warm(float temp) {          //decide to warm&alarm or not
+  if (temp <= 34.5) {               //below 34.5 celcius
+    digitalWrite(warmer, HIGH);  //start heater
+  }
+  if (temp >= 35.5) {         //above 35.5
+    digitalWrite(warmer, LOW);   //heater off
+  }
+  if (temp <= 34 || temp > 36) {
+    beep_time += (tim / 1000);
+  }
+  else {
+    beep_time = 0;
+  }
+  if (beep_time > beep_begin && beep_time < beep_begin + beep_end) { 
+    //unacceptable temp for 3 min，3X60=180s
+    digitalWrite(buzzer, HIGH);
+  }
+  else {
+    digitalWrite(buzzer, LOW);
+  }
+  if (beep_time  >= beep_begin + beep_end) {
+    beep_time = 0;
+  }
+
+}
+
+void Display_temps() {
+  unsigned char i;
+  for (i = 0; i <= 79; i++) {    //show temp points chronologically
+    display.drawPixel(i, temps[i], WHITE);
+  }
+  display.display();
+}
+
+void Temp_coord(float temp) {
+  unsigned char i;
+  if (val < 79) {   //first 79 points show as it is
+    temps[val] = 60 - char(temp * 1.5 + 0.5);
+    val++;
+  }
+  else {
+    for (i = 0; i <= 79; i++) {  //80 and more, push the first point
+      temps[i] = temps[i + 1];
+    }
+    temps[79] = 60 - char(temp * 1.5  + 0.5); //fill in the last temp as the 79th point
+  }
+}
+
+void temp_save(float temp) {
+  //open file, only one at a time
+  myFile = SD.open("temp.CSV", FILE_WRITE);
+  // if open, write down
+  if (myFile)
+  {
+    Serial.print("Writing to test.txt...");
+    time_disposal();
+    myFile.print((String)temp);
+    myFile.println("C");
+    // close file
+    myFile.close();
+    Serial.println("done.");
+  }
+  else
+  {
+    //if not open, show this
+    Serial.println("error opening test.txt");
+  }
+}
+
+void time_disposal() {  //read and show as hour, min, and second
+  long val = millis();   //val=ms，below is turning it into hour, min, and sec
+  unsigned char hour = (val / 1000) / 3600;
+  unsigned char minusrt = ((val / 1000) / 60) % 60;
+  unsigned char second = (val / 1000) % 60;
+  myFile.print(hour);
+  myFile.print("：");
+  myFile.print(minusrt);
+  myFile.print("：");
+  myFile.print(second);
+  myFile.print(",");      //write in chronological order
+}

@@ -10,5 +10,3 @@ https://github.com/norahty/pertrifilm-incubator/assets/94091909/ba8adeef-1e1c-42
 
 the entire incubator:
 https://github.com/norahty/pertrifilm-incubator/assets/94091909/f8f6c08b-6aa4-430f-8590-91d2bb6ff496
-
-Project continued by other reasearchers here: https://github.com/PubInv/moonrat

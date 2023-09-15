@@ -5,9 +5,9 @@ Coded using C++ to build a portable Petrifilm incubator (a system to inspect e.c
 Here's a simple demo of how the system works:
 
 temperature control demo:
-[<iframe width="560" height="315" src="https://www.youtube.com/embed/YourVideoID" frameborder="0" allowfullscreen></iframe>](https://youtu.be/9kM2l5zZdPc)
+[<iframe width="560" height="315" src="https://youtu.be/9kM2l5zZdPc" frameborder="0" allowfullscreen></iframe>]
 
 
 the entire incubator:
-[https://github.com/norahty/pertrifilm-incubator/assets/94091909/f8f6c08b-6aa4-430f-8590-91d2bb6ff496](https://youtu.be/iwD6A-Eg-hc)https://youtu.be/iwD6A-Eg-hc
+[<iframe width="560" height="315" src="https://youtu.be/iwD6A-Eg-hc" frameborder="0" allowfullscreen></iframe>]
 
